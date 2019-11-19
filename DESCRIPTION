@@ -1,11 +1,11 @@
 Package: cmap_policy_functions
 Type: Package
-Title: 
+Title: CMAP Policy Team Functions
 Version: 0.1.0
 Author: Matthew Stern
 Maintainer: Matthew Stern <mstern@cmap.illinois.gov>
 Description: A group of custom functions written and used by CMAP policy development staff.
 Depends: 
-License: What license is it under?
+License: MIT License
 Encoding: UTF-8
 LazyData: true
