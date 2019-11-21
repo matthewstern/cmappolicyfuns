@@ -1,0 +1,33 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1574372813465.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "7C9E12BD",
+    "lastKnownWriteTime" : 2459592266154403181,
+    "last_content_update" : 1574372813465,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "9A6ED50",
+        "caption" : "race_iterations",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=race_iterations&cache_key=9A6ED50",
+        "displayedObservations" : 10,
+        "environment" : "",
+        "expression" : "race_iterations",
+        "object" : "race_iterations",
+        "preview" : 0,
+        "totalObservations" : 10,
+        "variables" : 2
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}
