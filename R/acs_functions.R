@@ -28,7 +28,7 @@ assemble_peer_acs <- function(table = NULL, variables = NULL,  # Use either sing
 
   # PART 1: Check for valid inputs ---------------------------------------------
 
-  if(!require(tidyverse) | !require(tidycensus) | !require(stringr)) stop("This package requires 'tidyverse', 'stringr', and 'tidycensus'.")
+  if(!require(tidyverse) | !require(tidycensus)) stop("This package requires 'tidyverse' and 'tidycensus'.")
 
   # determine table or variables
   if (is.null(table) && is.null(variables)){
