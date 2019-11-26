@@ -74,7 +74,7 @@ get_acs_multi <- function(geography, variables = NULL, table = NULL,
     # for each year
     for(THIS_YEAR in years){
       # print update
-      cat("Getting data: ", survey, " | ", str_pad(source, 8, side="right"),  " | ", THIS_YEAR, " | ", THIS_RACE_NAME, "\n")
+      cat(" Getting data: ", survey, " | ", str_pad(source, 8, side="right"),  " | ", THIS_YEAR, " | ", THIS_RACE_NAME, "\n")
 
       # get data
       data_this <- suppressMessages(get_acs(geography = geography, variables = variables2, table = table2,
@@ -103,7 +103,7 @@ get_acs_multi <- function(geography, variables = NULL, table = NULL,
 }
 
 
-get_acs_local <- function(table = NULL, years = 2018, racial = FALSE, survey = "acs1", path = NULL){
+get_acs_local <- function(table = NULL, years = 2018, racial = FALSE, survey = "acs1", path = NULL, peers = default_peers){
 
   data <- tibble()
 
@@ -128,12 +128,18 @@ get_acs_local <- function(table = NULL, years = 2018, racial = FALSE, survey = "
     # identify variables
     THIS_RACE_CODE <- races$CODE[i]
     THIS_RACE_NAME <- races$RACE[i]
-    table2 <- paste0(table, THIS_RACE_CODE)
+
+    # append race code if needed
+    if(THIS_RACE_NAME == "All"){
+      table2 <- table
+    } else {
+      table2 <- paste0(table, THIS_RACE_CODE)
+    }
 
     # for each year
     for(THIS_YEAR in years){
       # print update
-      cat("Getting data: ", survey, " | ", str_pad(table2, 8, side="right"),  " | ", THIS_YEAR, " | ", THIS_RACE_NAME, "\n")
+      cat(" Getting data: ", survey, " | ", str_pad(table2, 8, side="right"),  " | ", THIS_YEAR, " | ", THIS_RACE_NAME, "\n")
 
       # identify survey type
       subname <- case_when(
@@ -188,13 +194,13 @@ get_acs_local <- function(table = NULL, years = 2018, racial = FALSE, survey = "
                       grepl("County", Geography) ~ "county"),
                     RACE = THIS_RACE_NAME
       ) %>%
-        filter(Id2 %in% default_peers$GEOID | GEO == "nation" | GEO == "county") %>%
-        left_join(default_peers, by=c("Id2"="GEOID")) %>%
+        filter(Id2 %in% peers$GEOID | GEO == "nation" | GEO == "county") %>%
+        left_join(peers, by=c("Id2"="GEOID")) %>%
         mutate(
           NAME = case_when(
             GEO == "MSA" ~ NAME_short,
             GEO == "nation" ~ "United States",
-            GEO == "county" ~ gsub(x = Geography, pattern = " County, Illinois", replacement = "")
+            GEO == "county" ~ Geography
           ),
           GEOID = case_when(
             GEO == "nation" ~ "1",
@@ -215,15 +221,17 @@ get_acs_local <- function(table = NULL, years = 2018, racial = FALSE, survey = "
 
 data_api <- get_acs_multi("county", table = "B01001", years = 2013, racial = "BDHI", state = "17", county = c("031", "043", "089", "093", "097", "111", "197"), survey = "acs1", output = "wide" )
 data_local <- get_acs_local(table = "B01001", year = 2006, racial = "BDHI", path = "S:/Projects_FY20/Policy Development/Regional Economic Indicators/DataManagement/ACS_19_pull/pre-2010 tables from factfinder/")
+data_reg <- get_acs("county", table = "B01001", year = 2013, state ="17", county =c("031", "043", "089", "093", "097", "111", "197"), survey = "acs1", output = "wide")
 names <- tibble(api = names(data_api), local = names(data_local))
 
 
 assemble_peer_acs2 <- function(table = NULL, variables = NULL,  # Use either singular `table` or vector of `variables`
-                               years = 2018,                    # Required. can be a vector.
+                               years_API = NULL,                # Years to pull from API. Can be a vector.
+                               years_local = NULL,              # years to pull from local dir. Can be a vector.
                                racial = FALSE,                  # = TRUE all racial iterations. ="[string of chars]" for specific iterations
                                peers = NULL,                    # Pass in Peer MSA table. Requires variables `GEOID` and `NAME_short`.
                                try_suppressed = TRUE,           # = FALSE to not attempt replacing suppressed 1year data with 5year. (when 5 year doesn't exist)
-                               avg_weight = NULL,               # If null, counties will SUM for regional total. Specify a weight variable to trigger weighted average.
+                               summary_var = NULL,              # If null, counties will SUM for regional total. Specify a weight variable to trigger weighted average.
                                local_dir = NULL,                # local directory for files not yet on data.census.gov
                                state_fips = "17", counties = c("031", "043", "089", "093", "097", "111", "197")) # Can be overridden for non-CMAP use
 {
@@ -240,15 +248,107 @@ assemble_peer_acs2 <- function(table = NULL, variables = NULL,  # Use either sin
     stop("Both a table and a vector of variables cannot be supplied. Provide one or the other", call. = FALSE)
   }
 
-  #### EITHER get local data
 
-  #### OR get national data
+  # if user did not pass peer MSA table, use default peers list.
+  if(is.null(peers)){
+      peers <- default_peers
+      message( "User did not pass variable `peers` so using default peers list.")
+  }
 
-  #### get MSA data, filter it for peers list
+  # confirm correct variables exist in peers tibble
+  if(!("GEOID" %in% names(peers)) | !("NAME_short" %in% names(peers))){
+    stop("`peers` must be a tibble containing variables `GEOID` and `NAME_short`.", call. = FALSE)
+  }
 
-  #### get county data
+  raw_api <- tibble()
+  raw_local <- tibble()
 
-  #### try 5 year year county data
 
-  #### summarize county data
+  if(length(years_API)){
+    message("Fetching data from API.")
+
+    # get national data
+    cat("National...\n")
+    raw_us <- get_acs_multi(geography = "us", table=table, variables=variables, cache_table = TRUE, years = years_API,
+                            racial = racial, survey = "acs1", summary_var = summary_var)
+
+    # get MSA data
+    cat("MSA...\n")
+    raw_msa <- get_acs_multi(geography = "metropolitan statistical area/micropolitan statistical area",
+                             table=table, variables=variables, cache_table = TRUE, years = years_API,
+                             racial = racial, survey = "acs1", summary_var = summary_var) %>%
+                filter(GEOID %in% peers$GEOID) %>%
+                merge(peers, by="GEOID") %>%
+                select(-NAME) %>%
+                select(NAME = NAME_short, everything())
+
+    cat("Counties...\n")
+    raw_county <- get_acs_multi(geography = "county", table=table, variables=variables, cache_table = TRUE, years = years_API,
+                                racial = racial, state=state_fips, county=counties, survey = "acs1", summary_var = summary_var)
+
+    raw <- bind_rows(raw_us, raw_msa, raw_county) %>%
+      count_suppressed()
+  }
+
+  # get local data
+  if(length(years_local)){
+    message("Fetching local tables downloaded from factfinder.")
+
+    # errors
+    if (is.null(table)) stop("You must specify a table for local pull.", call. = FALSE)
+    if (is.null(local_dir)) stop("You must specify a local directory that contains downoaded tables.", call. = FALSE)
+
+    # get data
+    raw_local <- get_acs_local(table = table, years = years_local, racial = racial, survey = "acs1", path = local_dir, peers = peers) %>%
+      count_suppressed()
+
+    # if data was also pulled from API...
+    if(length(names(raw))){
+      # modify variable names to match API names
+      message("Opening a tibble to verify names of local vs API variables.")
+      View(tibble(local = names(raw_local), API = names(raw)))
+      names(raw_local) <- names(raw)
+
+      # and add local info to API info
+      raw <- bind_rows(raw, raw_local)
+    }
+  }
+
+  # clean up county names
+  raw$NAME <-gsub(x = raw$NAME, pattern = " County, Illinois", replacement = "")
+
+  # identify suppressed counties
+  suppressed_counties <- raw %>%
+    filter(GEO == "county", SUPPRESSED>0) %>%
+    select(GEOID, NAME) %>%
+    distinct()
+
+  # print suppressed counties
+  if (nrow(suppressed_counties) > 0) message(paste(" Geogs with suppressed data:", paste(suppressed_counties$NAME, collapse=", ")))
+
+  # look up 5 year data for suppressed counties
+  if (nrow(suppressed_counties) > 0 | try_suppressed = TRUE){
+    # recursive here?
+  }
+
+  # summarize county data
+
+  # clean up data
+
+  # at some point, clean up county names:
+
+
+  return(raw)
+
 }
+
+count_suppressed <- function(df){
+  # create a new dataframe without Margins of error
+  df_estimates <- select(df, ends_with("E"))
+
+  ## return a dataframe with a new column in which the counts of estimates (not MOEs) with NA values is returned
+  add_column(df, SUPPRESSED = apply(df_estimates, MARGIN = 1, function(x) sum(is.na(x))), .before = 0)
+}
+
+
+data <- assemble_peer_acs2(table = "B19013", years_local = 2009, years_API = 2013 ,racial = "BDHI", local_dir = path)
