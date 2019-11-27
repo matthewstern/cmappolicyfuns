@@ -327,15 +327,40 @@ assemble_peer_acs2 <- function(table = NULL, variables = NULL,  # Use either sin
   if (nrow(suppressed_counties) > 0) message(paste(" Geogs with suppressed data:", paste(suppressed_counties$NAME, collapse=", ")))
 
   # look up 5 year data for suppressed counties
-  if (nrow(suppressed_counties) > 0 | try_suppressed = TRUE){
-    # recursive here?
+  if (nrow(suppressed_counties) > 0 && try_suppressed == TRUE){
+    # create tibble of counties with 3 digit NAICS codes
+    suppressed_counties_list <- transmute(suppressed_counties, GEOID_SHORT = substr(GEOID, 3, 5))
+    # and convert it to a list
+    suppressed_counties_list <- suppressed_counties_list$GEOID_SHORT
+
+
+    # API data
+    if(length(years_API)){
+      message("Attempting to replace 1yr data from API with 5yr data.")
+      counties_suppressed_api <- get_acs_multi(geography = "county", table=table, variables=variables, cache_table = TRUE, years = years_API,
+                                               racial = racial, state=state_fips, county=suppressed_counties_list, survey = "acs5", summary_var = summary_var) %>%
+        count_suppressed()
+
+      raw <- bind_rows(raw, counties_suppressed_api)
+    }
+
+    if(length(years_local)){
+      counties_suppressed_local <- get_acs_local(table = table, years = years_local, racial = racial, survey = "acs5", path = local_dir, peers = peers) %>%
+        filter(GEOID %in% suppressed_counties$GEOID) %>%
+        count_suppressed()
+
+      raw <- bind_rows(raw, suppressed_counties_local)
+
+    }
+
+    # clean up county names again
+    raw$NAME <-gsub(x = raw$NAME, pattern = " County, Illinois", replacement = "")
+
+    # arrange for chronology??
+
   }
 
   # summarize county data
-
-  # clean up data
-
-  # at some point, clean up county names:
 
 
   return(raw)
